@@ -15,7 +15,7 @@ pipeline {
                 branches: [[name: '/main']],  // or '/master' if that's your branch
                 userRemoteConfigs: [[
                     url: 'https://github.com/kulkarniakshays/docker.git',
-                    credentialsId: 'git-credentials'
+                    credentialsId: 'mygitoken'
             ]]
     ])
             }

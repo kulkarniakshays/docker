@@ -15,46 +15,68 @@ pipeline {
             }
         }
 
-        stage('Authenticate with ECR') {
+        stage('Set AWS Credentials') {
             steps {
-                script {
+                withCredentials([usernamePassword(
+                    credentialsId: 'aws-credentials',     // ✅ Jenkins Credentials ID
+                    usernameVariable: 'AWS_ACCESS_KEY_ID',
+                    passwordVariable: 'AWS_SECRET_ACCESS_KEY'
+                )]) {
                     sh '''
-                    aws ecr get-login-password --region $AWS_REGION | \
-                    docker login --username AWS \
-                    --password-stdin $ECR_REGISTRY
+                    mkdir -p ~/.aws
+
+                    cat > ~/.aws/credentials <<EOF
+[default]
+aws_access_key_id=$AWS_ACCESS_KEY_ID
+aws_secret_access_key=$AWS_SECRET_ACCESS_KEY
+EOF
+
+                    cat > ~/.aws/config <<EOF
+[default]
+region=$AWS_REGION
+output=json
+EOF
                     '''
                 }
+            }
+        }
+
+        stage('Login to ECR') {
+            steps {
+                sh '''
+                aws ecr get-login-password --region $AWS_REGION | \
+                docker login --username AWS \
+                --password-stdin $ECR_REGISTRY
+                '''
             }
         }
 
         stage('Build Docker Image') {
             steps {
-                script {
-                    sh '''
-                    docker build -t $ECR_REPO:$IMAGE_TAG .
-                    docker tag $ECR_REPO:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPO:$IMAGE_TAG
-                    '''
-                }
+                sh '''
+                docker build -t $ECR_REPO:$IMAGE_TAG .
+                docker tag $ECR_REPO:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPO:$IMAGE_TAG
+                '''
             }
         }
 
-        stage('Push to ECR') {
+        stage('Push Image to ECR') {
             steps {
-                script {
-                    sh '''
-                    docker push $ECR_REGISTRY/$ECR_REPO:$IMAGE_TAG
-                    '''
-                }
+                sh '''
+                docker push $ECR_REGISTRY/$ECR_REPO:$IMAGE_TAG
+                '''
             }
         }
     }
 
     post {
         success {
-            echo 'Docker image built and pushed to ECR successfully!'
+            echo "✅ Docker image pushed to ECR: $ECR_REPO:$IMAGE_TAG"
         }
         failure {
-            echo 'Pipeline failed.'
+            echo "❌ Failed to push Docker image to ECR"
         }
     }
-}
+    
+
+    
